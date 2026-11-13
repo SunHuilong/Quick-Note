@@ -1,0 +1,85 @@
+{
+  "name": "quick-note",
+  "pluginName": "快记 · Quick note",
+  "author": "本地开发",
+  "description": "桌面悬浮待办，随手快记。快记（Quick note）是一款轻量 Todo 与桌面便签工具，随手记录任务清单、工作琐事和临时想法，按天整理时间线，一键勾选完成。无需创建项目或选择分类，记下就能接着做事，回看也有迹可循。",
+  "version": "1.0.16",
+  "main": "index.html",
+  "preload": "preload.js",
+  "logo": "logo.png",
+  "pluginSetting": { "single": true, "height": 620 },
+  "features": [
+    { "code": "home", "description": "打开快记，随手记录，按天回看。", "cmds": ["快记", "Quick note"] },
+    { "code": "timeline", "description": "按天回看待办清单，留住事情的来处。", "cmds": ["快记时间线", "待办时间线"] },
+    { "code": "sticky", "description": "打开桌面快贴，想到就记，做完勾一下。", "cmds": ["快贴"] }
+  ],
+  "tools": {
+    "list_tasks": {
+      "description": "查询快记待办，可按创建日期、完成状态、关键词筛选。按创建日倒序、日内创建时间正序返回，包含完整文本、_id 和 _rev。created_from/created_to 是创建时记录的本地日期；完成日期不改变分组。默认返回最多 50 条，可用 next_offset 继续查询。后台执行，不打开窗口。",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "created_from": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "创建日期起始值（含），YYYY-MM-DD。" },
+          "created_to": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "创建日期结束值（含），YYYY-MM-DD。" },
+          "status": { "type": "string", "enum": ["all", "pending", "completed"], "default": "all" },
+          "keyword": { "type": "string", "description": "在任务文本中查找的关键词，不区分英文大小写。" },
+          "offset": { "type": "integer", "minimum": 0, "default": 0 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+        }
+      }
+    },
+    "get_task": {
+      "description": "读取快记中的单条任务，返回完整文本、完成状态、创建日期和最新 _rev。修改、完成或删除之前先读取并核对；task_id 使用查询结果中的 _id。后台执行，不打开窗口。",
+      "inputSchema": {
+        "type": "object", "additionalProperties": false,
+        "properties": { "task_id": { "type": "string", "minLength": 1 } },
+        "required": ["task_id"]
+      }
+    },
+    "create_task": {
+      "description": "在快记中新增一条待办，按本机当前日期归入今天，返回新任务的 _id 和 _rev。text 为纯文本，换行仍属于同一条任务。不支持指定或修改创建日期。后台保存并同步已打开的界面。",
+      "inputSchema": {
+        "type": "object", "additionalProperties": false,
+        "properties": { "text": { "type": "string", "minLength": 1, "description": "任务正文，可包含换行，不能全为空白。" } },
+        "required": ["text"]
+      }
+    },
+    "update_task": {
+      "description": "修改一条快记任务的正文，保留创建日期和完成状态。先读取并核对任务；expected_revision 必须是最新 _rev。冲突时先重新读取，不得直接覆盖。后台保存并同步界面。",
+      "inputSchema": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "task_id": { "type": "string", "minLength": 1 },
+          "expected_revision": { "type": "string", "minLength": 1, "description": "最近读取该任务得到的 _rev。" },
+          "text": { "type": "string", "minLength": 1 }
+        },
+        "required": ["task_id", "expected_revision", "text"]
+      }
+    },
+    "set_task_completed": {
+      "description": "将快记任务明确设为完成（completed=true）或恢复未完成（false），不是反转开关。已处于目标状态时不重复更新完成时间。先读取并核对任务，提供最新 _rev；保留创建日期。后台保存并同步界面。",
+      "inputSchema": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "task_id": { "type": "string", "minLength": 1 },
+          "expected_revision": { "type": "string", "minLength": 1 },
+          "completed": { "type": "boolean" }
+        },
+        "required": ["task_id", "expected_revision", "completed"]
+      }
+    },
+    "delete_task": {
+      "description": "永久删除快记中的单条任务。仅在用户明确要求删除并确认具体任务后调用；先读取任务，提供其 _id、最新 _rev 及 confirm=true。没有批量删除或清空功能。后台删除并同步界面。",
+      "inputSchema": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "task_id": { "type": "string", "minLength": 1 },
+          "expected_revision": { "type": "string", "minLength": 1 },
+          "confirm": { "type": "boolean", "enum": [true], "description": "仅在用户明确确认删除这条任务后传 true。" }
+        },
+        "required": ["task_id", "expected_revision", "confirm"]
+      }
+    }
+  }
+}
