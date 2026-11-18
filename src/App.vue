@@ -21,6 +21,7 @@ const completedDaysButton = ref(null)
 const collapsibleDays = computed(() => {
   const days = new Set()
   for (const { day, tasks } of groups.value) {
+    if (day === today.value) continue
     if (tasks.length && tasks.every(task => task.completedAt !== null && !state.editing.has(task._id))) days.add(day)
   }
   return days
@@ -28,7 +29,7 @@ const collapsibleDays = computed(() => {
 const timelineGroups = computed(() => completedDaysCollapsed.value
   ? groups.value.filter(group => !collapsibleDays.value.has(group.day))
   : groups.value)
-const completedDaysAction = computed(() => completedDaysCollapsed.value ? '展开已完成日期' : '收起已完成日期')
+const completedDaysAction = computed(() => completedDaysCollapsed.value ? '展开已完成的历史日期' : '收起已完成的历史日期')
 const composer = ref(null)
 const settingsDialog = ref(null)
 const settingsButton = ref(null)
@@ -163,7 +164,7 @@ onUnmounted(() => {
         <p v-if="appearance.reason" class="setting-hint" role="status">{{ appearance.reason }}</p>
       </fieldset>
       <fieldset><legend>快贴中的已完成任务</legend><label class="preference-option"><input v-model="preferences.showCompleted" type="radio" name="completed" :value="true" @change="savePreference('showCompleted')" /><span><strong>划线常显</strong><small>保留在原位，随时再次勾选恢复。</small></span></label><label class="preference-option"><input v-model="preferences.showCompleted" type="radio" name="completed" :value="false" @change="savePreference('showCompleted')" /><span><strong>完成后隐藏</strong><small>划线保留 5 秒，期间可再次勾选恢复。</small></span></label></fieldset>
-      <p class="settings-note">此设置仅适用于桌面快贴。主界面可用右下角图标收起或展开全部任务已完成的日期列。</p><p v-if="preferenceError" class="inline-error" role="alert">{{ preferenceError }}</p>
+      <p class="settings-note">此设置仅适用于桌面快贴。主界面右下角的双箭头可收起或展开任务全部完成的历史日期列。今天的日期列始终显示。</p><p v-if="preferenceError" class="inline-error" role="alert">{{ preferenceError }}</p>
     </dialog>
   </main>
 </template>

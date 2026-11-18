@@ -73,6 +73,7 @@ async function screenshot(page, name) {
   await writeFile(join(artifacts, `${name}.png`), Buffer.from(data, 'base64'))
 }
 const row = id => `[data-task-id="quick-note/task/${id}"]`
+const collapseButton = 'button[aria-controls="timeline-board"]'
 
 try {
   await access(join(dist, 'index.html'))
@@ -470,9 +471,11 @@ try {
     }
   })
   await check('只有今天时不显示时间线，空列表保留输入入口和今天列', async () => {
-    await evaluate(main, `window.testHost.reset(${JSON.stringify([exampleTasks()[0]])})`)
+    const [, , completedToday] = exampleTasks()
+    await evaluate(main, `window.testHost.reset(${JSON.stringify([completedToday])})`)
     await until(sticky, 'document.querySelectorAll(".task-row").length === 1')
     assert.equal(await evaluate(sticky, 'document.querySelectorAll(".day-heading").length'), 0)
+    assert.equal(await evaluate(main, `document.querySelector('${collapseButton}').disabled`), true)
     await evaluate(main, 'window.testHost.reset([])')
     await until(sticky, '!!document.querySelector(".empty-state")')
     assert.equal(await evaluate(main, 'document.querySelectorAll(".day-column").length'), 1)
@@ -480,13 +483,13 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: 340, height: 480, deviceScaleFactor: 1, mobile: false }, sticky)
     await screenshot(sticky, 'sticky-empty')
   })
-  await check('时间线双箭头收起全完成日期，恢复原顺序，窄窗口可用键盘操作', async () => {
+  await check('时间线双箭头只收起全完成的历史日期，保留今天列，窄窗口可用键盘操作', async () => {
     const [a, , , d, e, f, g] = exampleTasks()
     a.completedAt = Date.now() - 6000
     d.completedAt = a.completedAt
     const records = [a, d, e, f, g]
     const days = 'Array.from(document.querySelectorAll(".day-column"), column => column.dataset.day)'
-    const button = '.app-footer button'
+    const button = collapseButton
     const buttonSelector = JSON.stringify(button)
     const icon = `document.querySelector(${buttonSelector}).querySelector("path").getAttribute("d")`
     await evaluate(main, `window.testHost.reset(${JSON.stringify(records)})`)
@@ -494,7 +497,7 @@ try {
     const originalDays = await evaluate(main, days)
     assert.deepEqual(originalDays, [a.createdDay, d.createdDay, f.createdDay])
     assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).textContent.trim()`), '')
-    assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).title`), '收起已完成日期')
+    assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).title`), '收起已完成的历史日期')
     const collapseIcon = await evaluate(main, icon)
 
     await send('Emulation.setDeviceMetricsOverride', { width: 340, height: 480, deviceScaleFactor: 1, mobile: false }, main)
@@ -513,9 +516,10 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 }, main)
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, main)
     await until(main, `document.querySelector(${buttonSelector}).getAttribute("aria-expanded") === "false"`)
-    assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).getAttribute("aria-label")`), '展开已完成日期')
+    assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).getAttribute("aria-label")`), '展开已完成的历史日期')
     assert.notEqual(await evaluate(main, icon), collapseIcon)
-    assert.deepEqual(await evaluate(main, days), [f.createdDay])
+    assert.deepEqual(await evaluate(main, days), [a.createdDay, f.createdDay])
+    assert.equal(await evaluate(main, `!!document.querySelector('.today-column ${row('a')}.completed')`), true)
     assert.equal(await evaluate(main, `!!document.querySelector('${row('g')}')`), true)
     assert.equal(await evaluate(sticky, 'document.querySelectorAll(".task-row").length'), 5)
     assert.deepEqual(await evaluate(main, 'window.testHost.getState().docs'), records)
@@ -526,13 +530,14 @@ try {
     await click(main, button)
     await evaluate(main, `document.querySelector('${row('f')} input').focus()`)
     await click(sticky, `${row('f')} .task-checkbox`)
-    await until(main, 'document.querySelectorAll(".day-column").length === 0')
+    await until(main, 'document.querySelectorAll(".day-column").length === 1')
+    assert.deepEqual(await evaluate(main, days), [a.createdDay])
     assert.equal(await evaluate(main, `document.activeElement === document.querySelector(${buttonSelector})`), true)
     assert.equal(await evaluate(main, `document.querySelector(${buttonSelector}).disabled`), false)
     assert.equal(await evaluate(main, 'document.querySelector(".composer textarea").disabled'), false)
     await click(sticky, `${row('f')} .task-checkbox`)
     await until(main, `!!document.querySelector('${row('f')}')`)
-    assert.deepEqual(await evaluate(main, days), [f.createdDay])
+    assert.deepEqual(await evaluate(main, days), [a.createdDay, f.createdDay])
 
     await send('Page.reload', {}, main)
     await until(main, `document.querySelector(${buttonSelector})?.getAttribute("aria-expanded") === "true" && document.querySelectorAll(".day-column").length === 3`)
